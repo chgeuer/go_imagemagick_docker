@@ -13,36 +13,37 @@ import (
 	"gopkg.in/gographics/imagick.v3/imagick"
 )
 
-const (
-	inputfile = "input.jpg"
-)
-
 func main() {
-	if err := resizeExternally(inputfile, "result_ext.jpg"); err != nil {
-		fmt.Println("External Error", err)
+	if err := external("input.jpg", "result_int.jpg"); err != nil {
+		fmt.Println("Internal Error", err)
 	}
-	if err := resizeInternally(inputfile, "result_int.jpg"); err != nil {
+
+	if err := resizeInternally("input.jpg", "result_int.jpg"); err != nil {
 		fmt.Println("Internal Error", err)
 	}
 }
 
-func resizeExternally(inputfile, outputFile string) error {
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-
-	inputStream, err := os.Open(inputfile)
+func external(inputFileName, outputFileName string) error {
+	inputReader, err := os.Open(inputFileName)
 	if err != nil {
 		log.Fatal("ioutil.ReadFile error", err)
 		return err
 	}
-	defer inputStream.Close()
+	defer inputReader.Close()
 
-	outFileStream, err := os.Create(outputFile)
+	outWriter, err := os.Create(outputFileName)
 	if err != nil {
 		log.Fatal("os.Create error", err)
 		return err
 	}
-	defer outFileStream.Close()
+	defer outWriter.Close()
+
+	return resizeExternally(inputReader, outWriter)
+}
+
+func resizeExternally(inputReader io.Reader, outputWriter io.Writer) error {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
 
 	cmd := exec.CommandContext(ctx, "/usr/bin/convert", "-", "-resize", "50%", "-")
 
@@ -56,7 +57,7 @@ func resizeExternally(inputfile, outputFile string) error {
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		_, err := io.Copy(outFileStream, stdoutPipe)
+		_, err := io.Copy(outputWriter, stdoutPipe)
 		if err != nil {
 			log.Fatal("io.Copy", err)
 		}
@@ -69,7 +70,7 @@ func resizeExternally(inputfile, outputFile string) error {
 	}
 	go func() {
 		defer stdinPipe.Close()
-		_, err := io.Copy(stdinPipe, inputStream)
+		_, err := io.Copy(stdinPipe, inputReader)
 		if err != nil {
 			log.Fatal("stdinPipe.Write", err)
 		}
