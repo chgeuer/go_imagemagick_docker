@@ -5,19 +5,38 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"net/url"
 	"os"
 	"os/exec"
 	"sync"
 	"time"
 
+	a "github.com/Azure/azure-storage-blob-go/azblob"
 	"gopkg.in/gographics/imagick.v3/imagick"
 )
 
 const (
-	timeout = 10 * time.Second
+	megaByte         = 1 << 20
+	defaultBlockSize = 50 * megaByte
+	maxRetries       = 5
+	retryDelay       = 1 * time.Second
+	timeout          = 10 * time.Second
 )
 
 func main() {
+	sharedKeyCredential, _ := a.NewSharedKeyCredential("erlang", "jlkjlkjlk")
+	pipeline := a.NewPipeline(sharedKeyCredential, a.PipelineOptions{
+		Retry: a.RetryOptions{
+			Policy:     a.RetryPolicyExponential,
+			MaxTries:   maxRetries,
+			RetryDelay: retryDelay,
+		}})
+
+	url, _ := url.Parse(fmt.Sprintf("https://%s.blob.core.windows.net", "erlang"))
+	serviceURL := a.NewServiceURL(*url, pipeline)
+	containerURL := serviceURL.NewContainerURL("videos")
+	fmt.Printf("%s\n", containerURL)
+
 	if err := resizeExternally("input.jpg", "result_ext.jpg"); err != nil {
 		fmt.Println("External Error", err)
 	}

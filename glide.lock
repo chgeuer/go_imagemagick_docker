@@ -1,0 +1,17 @@
+hash: 00de10a9baa486a8c328615149ae8e2c1396b48f4d5fe652b91b8a21c99db698
+updated: 2019-03-20T14:26:36.6002811Z
+imports:
+- name: github.com/Azure/azure-pipeline-go
+  version: b8e3409182fd52e74f7d7bdfbff5833591b3b655
+  subpackages:
+  - pipeline
+- name: github.com/Azure/azure-storage-blob-go
+  version: 457680cc0804810f6d02958481e0ffdda51d5c60
+  subpackages:
+  - azblob
+- name: gopkg.in/gographics/imagick.v3
+  version: e5c95c340c8d9bf140ca670563906805b655d9d9
+  subpackages:
+  - imagick
+  - imagick/types
+testImports: []

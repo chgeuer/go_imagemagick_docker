@@ -10,41 +10,40 @@ RUN mkdir -p ${GOPATH}/src ${GOPATH}/bin && \
     ln -s MagickWand wand && \
     ln -s MagickCore magick && \
     curl -sL https://glide.sh/get | sh && \
-    go get gopkg.in/gographics/imagick.v3/imagick && \
     rm -rf /var/cache/apk/*
 
 #####################################
 
 FROM builder-base as builder
 
-#VOLUME ["/app"]
-
 ENV GOROOT /usr/lib/go
 ENV GOPATH /go
 ENV PATH /go/bin:$PATH
-WORKDIR $GOPATH
+ENV WD $GOPATH/src/github.com/chgeuer/go_imagemagick_docker/
 
-COPY run.go .
+WORKDIR $WD
 
-RUN CGO_ENABLED=1 GOOS=linux go build -a -installsuffix cgo -o ./app . && \
-   ls -als .
+COPY glide.yaml glide.lock ./
+RUN  glide install
 
-CMD ["magick", "-help"]
+COPY run.go ./
+RUN  CGO_ENABLED=1 GOOS=linux go build -a -installsuffix cgo -o ./app .
 
-###############################
+# ###############################
 
 FROM alpine:3.9
-
 ENV GOROOT /usr/lib/go
 ENV GOPATH /go
 ENV PATH /go/bin:$PATH
-WORKDIR $GOPATH
+ENV WD $GOPATH/src/github.com/chgeuer/go_imagemagick_docker/
+
+WORKDIR $WD
 
 RUN mkdir -p ${GOPATH}/src ${GOPATH}/bin && \
     apk --update add bash imagemagick && \
     rm -rf /var/cache/apk/*
 
-COPY --from=builder /go/app .
-# COPY IMG_20190131_065124.jpg /go/input.jpg
+COPY --from=builder $WD/app ./
 
+# COPY IMG_20190131_065124.jpg ./input.jpg
 CMD ["app"]
