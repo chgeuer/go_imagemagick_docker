@@ -30,14 +30,14 @@ func main() {
 func resizeExternally(inputFileName, outputFileName string) error {
 	inputReader, err := os.Open(inputFileName)
 	if err != nil {
-		log.Fatal("ioutil.ReadFile error", err)
+		log.Fatalf("ioutil.ReadFile: %s\n", err)
 		return err
 	}
 	defer inputReader.Close()
 
 	outWriter, err := os.Create(outputFileName)
 	if err != nil {
-		log.Fatal("os.Create error", err)
+		log.Fatalf("os.Create: %s\n", err)
 		return err
 	}
 	defer outWriter.Close()
@@ -71,44 +71,41 @@ func resize(inputReader io.Reader, outputWriter io.Writer) error {
 func execCommandPumpData(cmd *exec.Cmd, inputReader io.Reader, outputWriter io.Writer) error {
 	stdoutPipe, err := cmd.StdoutPipe()
 	if err != nil {
-		log.Fatal("cmd.StdoutPipe", err)
+		log.Fatalf("cmd.StdoutPipe(): %s\n", err)
 		return err
 	}
-
 	var wg sync.WaitGroup
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
 		_, err := io.Copy(outputWriter, stdoutPipe)
 		if err != nil {
-			log.Fatal("io.Copy", err)
+			log.Fatalf("io.Copy(): %s\n", err)
 		}
 	}()
 
 	stdinPipe, err := cmd.StdinPipe()
 	if err != nil {
-		log.Fatal("cmd.StdinPipe", err)
+		log.Fatalf("cmd.StdinPipe(): %s\n", err)
 		return err
 	}
 	go func() {
 		defer stdinPipe.Close()
-		_, err := io.Copy(stdinPipe, inputReader)
-		if err != nil {
-			log.Fatal("stdinPipe.Write", err)
+		if _, err := io.Copy(stdinPipe, inputReader); err != nil {
+			log.Fatalf("io.Copy(): %s\n", err)
 		}
 	}()
 
 	if err := cmd.Start(); err != nil {
-		log.Fatal("cmd.Start", err)
-		return err
-	}
-
-	if err != nil {
-		log.Fatalf("Non-zero exit code: %s", err)
+		log.Fatalf("cmd.Start(): %s\n", err)
 		return err
 	}
 
 	wg.Wait()
+	if err := cmd.Wait(); err != nil {
+		log.Fatalf("cmd.Wait(): %s\n", err)
+		return err
+	}
 
 	return nil
 }
