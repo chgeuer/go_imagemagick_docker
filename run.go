@@ -13,9 +13,13 @@ import (
 	"gopkg.in/gographics/imagick.v3/imagick"
 )
 
+const (
+	timeout = 10 * time.Second
+)
+
 func main() {
-	if err := external("input.jpg", "result_int.jpg"); err != nil {
-		fmt.Println("Internal Error", err)
+	if err := resizeExternally("input.jpg", "result_ext.jpg"); err != nil {
+		fmt.Println("External Error", err)
 	}
 
 	if err := resizeInternally("input.jpg", "result_int.jpg"); err != nil {
@@ -23,7 +27,7 @@ func main() {
 	}
 }
 
-func external(inputFileName, outputFileName string) error {
+func resizeExternally(inputFileName, outputFileName string) error {
 	inputReader, err := os.Open(inputFileName)
 	if err != nil {
 		log.Fatal("ioutil.ReadFile error", err)
@@ -38,15 +42,33 @@ func external(inputFileName, outputFileName string) error {
 	}
 	defer outWriter.Close()
 
-	return resizeExternally(inputReader, outWriter)
+	return resize(inputReader, outWriter)
 }
 
-func resizeExternally(inputReader io.Reader, outputWriter io.Writer) error {
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+func resize(inputReader io.Reader, outputWriter io.Writer) error {
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 
-	cmd := exec.CommandContext(ctx, "/usr/bin/convert", "-", "-resize", "50%", "-")
+	const (
+		executable = "/usr/bin/convert"
+		inputFile  = "-"
+		outputFile = "-"
+	)
+	args := []string{inputFile, "-resize", "50%", outputFile}
 
+	cmd := exec.CommandContext(ctx, executable, args...)
+	if err := execCommandPumpData(cmd, inputReader, outputWriter); err != nil {
+		return err
+	}
+
+	if ctx.Err() == context.DeadlineExceeded {
+		return ctx.Err()
+	}
+
+	return nil
+}
+
+func execCommandPumpData(cmd *exec.Cmd, inputReader io.Reader, outputWriter io.Writer) error {
 	stdoutPipe, err := cmd.StdoutPipe()
 	if err != nil {
 		log.Fatal("cmd.StdoutPipe", err)
@@ -81,10 +103,6 @@ func resizeExternally(inputReader io.Reader, outputWriter io.Writer) error {
 		return err
 	}
 
-	if ctx.Err() == context.DeadlineExceeded {
-		log.Fatal("Command timed out")
-		return ctx.Err()
-	}
 	if err != nil {
 		log.Fatalf("Non-zero exit code: %s", err)
 		return err
