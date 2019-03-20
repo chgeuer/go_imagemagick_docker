@@ -19,16 +19,19 @@ import (
 )
 
 const (
-	megaByte         = 1 << 20
-	defaultBlockSize = 50 * megaByte
-	maxRetries       = 5
-	retryDelay       = 1 * time.Second
-	timeout          = 10 * time.Second
-	executable       = "/usr/bin/convert"
+	// megaByte         = 1 << 20
+	// defaultBlockSize = 50 * megaByte
+	maxRetries = 5
+	retryDelay = 1 * time.Second
+	timeout    = 10 * time.Second
+	executable = "/usr/bin/convert"
 )
 
 func main() {
-	sharedKeyCredential, _ := a.NewSharedKeyCredential("erlang", "jlkjlkjlk")
+	storage_account_name := os.Getenv("az_storage_name")
+	storage_account_key := os.Getenv("az_storage_name")
+
+	sharedKeyCredential, _ := a.NewSharedKeyCredential(storage_account_name, storage_account_key)
 	pipeline := a.NewPipeline(sharedKeyCredential, a.PipelineOptions{
 		Retry: a.RetryOptions{
 			Policy:     a.RetryPolicyExponential,
@@ -36,7 +39,7 @@ func main() {
 			RetryDelay: retryDelay,
 		}})
 
-	url, _ := url.Parse(fmt.Sprintf("https://%s.blob.core.windows.net", "erlang"))
+	url, _ := url.Parse(fmt.Sprintf("https://%s.blob.core.windows.net", storage_account_name))
 	serviceURL := a.NewServiceURL(*url, pipeline)
 	containerURL := serviceURL.NewContainerURL("videos")
 	fmt.Printf("%s\n", containerURL)
@@ -138,15 +141,12 @@ func execCommandPumpData(cmd *exec.Cmd, inputReader io.Reader, outputWriter io.W
 	}()
 
 	if err := cmd.Start(); err != nil {
-		log.Fatalf("cmd.Start(): %s\n", err)
-		return err
+		return errors.Wrapf(err, "cmd.Start()")
 	}
 
 	wg.Wait()
 	if err := cmd.Wait(); err != nil {
-		err = errors.Wrapf(err, "stderr: %s", string(errorBuffer.Bytes()))
-		log.Fatalf("cmd.Wait(): %s\n", err)
-		return err
+		return errors.Wrapf(err, "cmd.Wait(): %s", string(errorBuffer.Bytes()))
 	}
 
 	return nil
