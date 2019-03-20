@@ -33,7 +33,17 @@ func resizeExternally(inputfile, outputFile string) error {
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-	cmd := exec.CommandContext(ctx, "/usr/bin/convert", inputfile, "-resize", "50%", outputFile)
+	cmd := exec.CommandContext(ctx, "/usr/bin/convert", "-", "-resize", "50%", outputFile)
+
+	stdinPipe, err := cmd.StdinPipe()
+	if err != nil {
+		log.Fatal(err)
+		return err
+	}
+	go func() {
+		defer stdinPipe.Close()
+		stdinPipe.Write(data)
+	}()
 
 	out, err := cmd.CombinedOutput()
 	if ctx.Err() == context.DeadlineExceeded {
