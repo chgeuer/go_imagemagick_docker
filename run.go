@@ -21,17 +21,23 @@ import (
 const (
 	// megaByte         = 1 << 20
 	// defaultBlockSize = 50 * megaByte
-	maxRetries = 5
-	retryDelay = 1 * time.Second
-	timeout    = 10 * time.Second
-	executable = "/usr/bin/convert"
+	maxRetries                                = 5
+	retryDelay                                = 1 * time.Second
+	timeout                                   = 10 * time.Second
+	environmentVariableNameStorageAccountName = "az_storage_name"
+	environmentVariableNameStorageAccountKey  = "az_storage_key"
+	executable                                = "/usr/bin/convert"
+	containerName                             = "ocirocks3"
+	blobName                                  = "20181007-110205-L1016848.jpg"
 )
 
 func main() {
-	storage_account_name := os.Getenv("az_storage_name")
-	storage_account_key := os.Getenv("az_storage_name")
+	var (
+		storageAccountName = os.Getenv(environmentVariableNameStorageAccountName)
+		storageAccountKey  = os.Getenv(environmentVariableNameStorageAccountKey)
+	)
 
-	sharedKeyCredential, _ := a.NewSharedKeyCredential(storage_account_name, storage_account_key)
+	sharedKeyCredential, _ := a.NewSharedKeyCredential(storageAccountName, storageAccountKey)
 	pipeline := a.NewPipeline(sharedKeyCredential, a.PipelineOptions{
 		Retry: a.RetryOptions{
 			Policy:     a.RetryPolicyExponential,
@@ -39,10 +45,13 @@ func main() {
 			RetryDelay: retryDelay,
 		}})
 
-	url, _ := url.Parse(fmt.Sprintf("https://%s.blob.core.windows.net", storage_account_name))
+	url, _ := url.Parse(fmt.Sprintf("https://%s.blob.core.windows.net", storageAccountName))
 	serviceURL := a.NewServiceURL(*url, pipeline)
-	containerURL := serviceURL.NewContainerURL("videos")
-	fmt.Printf("%s\n", containerURL)
+	containerURL := serviceURL.NewContainerURL(containerName)
+	blobURL := containerURL.NewBlockBlobURL(blobName)
+	fmt.Printf("%s\n", blobURL)
+
+	// blobURL.Download()
 
 	if err := resizeExternally("input.jpg", "result_ext.jpg"); err != nil {
 		fmt.Println("External Error", err)
@@ -110,7 +119,7 @@ func execCommandPumpData(cmd *exec.Cmd, inputReader io.Reader, outputWriter io.W
 		defer wg.Done()
 		_, err := io.Copy(outputWriter, stdoutPipe)
 		if err != nil {
-			log.Fatalf("io.Copy(): %s\n", err)
+			log.Fatalf("io.Copy(outputWriter, stdoutPipe): %s\n", err)
 		}
 	}()
 
@@ -124,7 +133,7 @@ func execCommandPumpData(cmd *exec.Cmd, inputReader io.Reader, outputWriter io.W
 		defer wg.Done()
 		_, err := io.Copy(errorWriter, stderrPipe)
 		if err != nil {
-			log.Fatalf("io.Copy(): %s\n", err)
+			log.Fatalf("io.Copy(errorWriter, stderrPipe): %s\n", err)
 		}
 	}()
 
@@ -136,7 +145,7 @@ func execCommandPumpData(cmd *exec.Cmd, inputReader io.Reader, outputWriter io.W
 	go func() {
 		defer stdinPipe.Close()
 		if _, err := io.Copy(stdinPipe, inputReader); err != nil {
-			log.Fatalf("io.Copy(): %s\n", err)
+			log.Fatalf("io.Copy(stdinPipe, inputReader): %s\n", err)
 		}
 	}()
 
