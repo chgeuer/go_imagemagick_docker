@@ -3,9 +3,12 @@ package main
 import (
 	"context"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"log"
+	"os"
 	"os/exec"
+	"sync"
 	"time"
 
 	"gopkg.in/gographics/imagick.v3/imagick"
@@ -27,25 +30,54 @@ func main() {
 func resizeExternally(inputfile, outputFile string) error {
 	data, err := ioutil.ReadFile(inputfile)
 	if err != nil {
-		log.Fatal("File reading error", err)
+		log.Fatal("ioutil.ReadFile error", err)
 		return err
 	}
+	outFileStream, err := os.Create(outputFile)
+	if err != nil {
+		log.Fatal("os.Create error", err)
+		return err
+	}
+	defer outFileStream.Close()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-	cmd := exec.CommandContext(ctx, "/usr/bin/convert", "-", "-resize", "50%", outputFile)
+	cmd := exec.CommandContext(ctx, "/usr/bin/convert", "-", "-resize", "50%", "-")
+
+	var wg sync.WaitGroup
+	wg.Add(1)
+
+	stdoutPipe, err := cmd.StdoutPipe()
+	if err != nil {
+		log.Fatal("cmd.StdoutPipe", err)
+		return err
+	}
+	go func() {
+		defer wg.Done()
+		_, err := io.Copy(outFileStream, stdoutPipe)
+		if err != nil {
+			log.Fatal("io.Copy", err)
+		}
+	}()
 
 	stdinPipe, err := cmd.StdinPipe()
 	if err != nil {
-		log.Fatal(err)
+		log.Fatal("cmd.StdinPipe", err)
 		return err
 	}
 	go func() {
 		defer stdinPipe.Close()
-		stdinPipe.Write(data)
+		_, err := stdinPipe.Write(data)
+		if err != nil {
+			log.Fatal("stdinPipe.Write", err)
+		}
 	}()
 
-	out, err := cmd.CombinedOutput()
+	if err := cmd.Start(); err != nil {
+		log.Fatal("cmd.Start", err)
+		return err
+	}
+
 	if ctx.Err() == context.DeadlineExceeded {
 		log.Fatal("Command timed out")
 		return ctx.Err()
@@ -54,7 +86,8 @@ func resizeExternally(inputfile, outputFile string) error {
 		log.Fatalf("Non-zero exit code: %s", err)
 		return err
 	}
-	fmt.Println(string(out))
+
+	wg.Wait()
 
 	return nil
 }
