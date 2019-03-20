@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"log"
 	"os"
 	"os/exec"
@@ -28,11 +27,16 @@ func main() {
 }
 
 func resizeExternally(inputfile, outputFile string) error {
-	data, err := ioutil.ReadFile(inputfile)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	inputStream, err := os.Open(inputfile)
 	if err != nil {
 		log.Fatal("ioutil.ReadFile error", err)
 		return err
 	}
+	defer inputStream.Close()
+
 	outFileStream, err := os.Create(outputFile)
 	if err != nil {
 		log.Fatal("os.Create error", err)
@@ -40,18 +44,16 @@ func resizeExternally(inputfile, outputFile string) error {
 	}
 	defer outFileStream.Close()
 
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
 	cmd := exec.CommandContext(ctx, "/usr/bin/convert", "-", "-resize", "50%", "-")
-
-	var wg sync.WaitGroup
-	wg.Add(1)
 
 	stdoutPipe, err := cmd.StdoutPipe()
 	if err != nil {
 		log.Fatal("cmd.StdoutPipe", err)
 		return err
 	}
+
+	var wg sync.WaitGroup
+	wg.Add(1)
 	go func() {
 		defer wg.Done()
 		_, err := io.Copy(outFileStream, stdoutPipe)
@@ -67,7 +69,7 @@ func resizeExternally(inputfile, outputFile string) error {
 	}
 	go func() {
 		defer stdinPipe.Close()
-		_, err := stdinPipe.Write(data)
+		_, err := io.Copy(stdinPipe, inputStream)
 		if err != nil {
 			log.Fatal("stdinPipe.Write", err)
 		}
