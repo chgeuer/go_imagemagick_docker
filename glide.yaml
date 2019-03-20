@@ -1,5 +1,6 @@
 package: github.com/chgeuer/go_imagemagick_docker
 import:
+- package: github.com/pkg/errors
 - package: github.com/Azure/azure-storage-blob-go
   subpackages:
   - azblob

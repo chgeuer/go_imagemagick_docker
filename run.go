@@ -1,6 +1,8 @@
 package main
 
 import (
+	"bufio"
+	"bytes"
 	"context"
 	"fmt"
 	"io"
@@ -12,6 +14,7 @@ import (
 	"time"
 
 	a "github.com/Azure/azure-storage-blob-go/azblob"
+	"github.com/pkg/errors"
 	"gopkg.in/gographics/imagick.v3/imagick"
 )
 
@@ -21,6 +24,7 @@ const (
 	maxRetries       = 5
 	retryDelay       = 1 * time.Second
 	timeout          = 10 * time.Second
+	executable       = "/usr/bin/convert"
 )
 
 func main() {
@@ -69,7 +73,6 @@ func resize(inputReader io.Reader, outputWriter io.Writer) error {
 	defer cancel()
 
 	const (
-		executable = "/usr/bin/convert"
 		inputFile  = "-"
 		outputFile = "-"
 	)
@@ -88,16 +91,35 @@ func resize(inputReader io.Reader, outputWriter io.Writer) error {
 }
 
 func execCommandPumpData(cmd *exec.Cmd, inputReader io.Reader, outputWriter io.Writer) error {
+	var (
+		wg          sync.WaitGroup
+		errorBuffer bytes.Buffer
+		errorWriter = bufio.NewWriter(&errorBuffer)
+	)
+
 	stdoutPipe, err := cmd.StdoutPipe()
 	if err != nil {
 		log.Fatalf("cmd.StdoutPipe(): %s\n", err)
 		return err
 	}
-	var wg sync.WaitGroup
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
 		_, err := io.Copy(outputWriter, stdoutPipe)
+		if err != nil {
+			log.Fatalf("io.Copy(): %s\n", err)
+		}
+	}()
+
+	stderrPipe, err := cmd.StderrPipe()
+	if err != nil {
+		log.Fatalf("cmd.StderrPipe(): %s\n", err)
+		return err
+	}
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		_, err := io.Copy(errorWriter, stderrPipe)
 		if err != nil {
 			log.Fatalf("io.Copy(): %s\n", err)
 		}
@@ -122,6 +144,7 @@ func execCommandPumpData(cmd *exec.Cmd, inputReader io.Reader, outputWriter io.W
 
 	wg.Wait()
 	if err := cmd.Wait(); err != nil {
+		err = errors.Wrapf(err, "stderr: %s", string(errorBuffer.Bytes()))
 		log.Fatalf("cmd.Wait(): %s\n", err)
 		return err
 	}

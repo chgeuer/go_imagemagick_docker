@@ -1,5 +1,5 @@
-hash: 00de10a9baa486a8c328615149ae8e2c1396b48f4d5fe652b91b8a21c99db698
-updated: 2019-03-20T14:26:36.6002811Z
+hash: 53415ac4918e3521d1c91df26dd1223aadb431cfd63fbba249dcd7dbd91c7675
+updated: 2019-03-20T18:18:24.4566803+01:00
 imports:
 - name: github.com/Azure/azure-pipeline-go
   version: b8e3409182fd52e74f7d7bdfbff5833591b3b655
@@ -9,6 +9,8 @@ imports:
   version: 457680cc0804810f6d02958481e0ffdda51d5c60
   subpackages:
   - azblob
+- name: github.com/pkg/errors
+  version: 059132a15dd08d6704c67711dae0cf35ab991756
 - name: gopkg.in/gographics/imagick.v3
   version: e5c95c340c8d9bf140ca670563906805b655d9d9
   subpackages:
